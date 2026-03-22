@@ -1603,17 +1603,68 @@
       }
     }
 
+    #mobile-top-bar {
+      display: none;
+    }
+
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 999;
+    }
+
     @media (max-width: 768px) {
       .sidebar {
         transform: translateX(-100%);
+        position: fixed;
+        z-index: 1000;
+        width: 280px;
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.15);
       }
 
       .sidebar.open {
         transform: translateX(0);
       }
 
+      .sidebar.open~.sidebar-overlay {
+        display: block;
+      }
+
       .main-content {
         margin-left: 0;
+        width: 100%;
+        overflow-x: hidden;
+      }
+
+      #mobile-top-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .mobile-logo {
+        font-family: 'Syne', sans-serif;
+        font-size: 20px;
+        font-weight: 800;
+        color: var(--text);
+      }
+
+      .mobile-logo span {
+        color: var(--accent);
+      }
+
+      #mobile-menu-btn {
+        background: transparent;
+        border: none;
+        color: var(--text);
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
       }
 
       .pos-layout {
@@ -1621,11 +1672,49 @@
       }
 
       .quick-actions {
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
       }
 
       .alerts-grid {
         grid-template-columns: 1fr;
+      }
+
+      .form-grid {
+        grid-template-columns: 1fr !important;
+      }
+
+      .auth-card,
+      .register-card {
+        width: 100% !important;
+        max-width: none;
+        margin: 0;
+        border: none;
+        border-radius: 0;
+        padding: 24px 20px !important;
+        box-shadow: none;
+        min-height: 100vh;
+      }
+
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      .header-actions {
+        flex-direction: column;
+        width: 100%;
+        align-items: stretch;
+      }
+
+      .date-pill {
+        text-align: center;
+      }
+
+      .table-card {
+        max-width: 100% !important;
+        padding: 16px !important;
       }
     }
 
@@ -1854,7 +1943,8 @@
       <div id="login-form" class="auth-form">
         <div class="field">
           <label>Email Address</label>
-          <input type="email" id="login-email" placeholder="your@email.com">
+          <input type="email" id="login-email" placeholder="your@email.com"
+            oninput="this.value = this.value.toLowerCase()">
         </div>
         <div class="field">
           <label>Password</label>
@@ -1887,11 +1977,22 @@
           </div>
           <div class="field">
             <label>Business Email</label>
-            <input type="email" id="reg-email" placeholder="store@email.com">
+            <input type="email" id="reg-email" placeholder="store@email.com"
+              oninput="this.value = this.value.toLowerCase()">
           </div>
           <div class="field">
             <label>Phone</label>
-            <input type="text" id="reg-phone" placeholder="+92 300 0000000">
+            <div style="display:flex;gap:8px">
+              <select id="reg-country-code" style="width:110px;flex-shrink:0;">
+                <option value="+1">+1 (US)</option>
+                <option value="+44">+44 (UK)</option>
+                <option value="+91">+91 (IN)</option>
+                <option value="+92" selected>+92 (PK)</option>
+                <option value="+971">+971 (UAE)</option>
+              </select>
+              <input type="text" id="reg-phone-number" placeholder="300 0000000" style="flex:1"
+                oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+            </div>
           </div>
           <div class="field">
             <label>Password</label>
@@ -1954,9 +2055,15 @@
         </button>
       </div>
     </div>
+    <div class="sidebar-overlay" onclick="document.getElementById('sidebar').classList.remove('open')"></div>
 
     <!-- MAIN CONTENT -->
     <div class="main-content">
+      <div id="mobile-top-bar">
+        <div class="mobile-logo">Retail<span>AI</span></div>
+        <button id="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.add('open')">☰</button>
+      </div>
+
       <!-- ADMIN PANELS -->
       <div id="panel-dashboard" class="panel active">
         <div class="page-header">
@@ -2760,6 +2867,16 @@
       document.getElementById('register-form').style.display = tab === 'register' ? 'flex' : 'none';
     }
 
+    function formatPhone(el) {
+      let val = el.value.replace(/[^0-9+]/g, '');
+      if (val.includes('+')) {
+        const hasPlusStart = val.startsWith('+');
+        val = val.replace(/\+/g, '');
+        if (hasPlusStart) val = '+' + val;
+      }
+      el.value = val;
+    }
+
     function togglePassword(inputId, iconEl) {
       const input = document.getElementById(inputId);
       if (input.type === 'password') {
@@ -2781,7 +2898,7 @@
     }
 
     async function doLogin() {
-      const email = document.getElementById('login-email').value.trim();
+      const email = document.getElementById('login-email').value.trim().toLowerCase();
       const password = document.getElementById('login-password').value;
       const role = document.getElementById('selected-role').value;
       if (!email || !password) { toast('Please fill all fields', 'error'); return; }
@@ -2827,13 +2944,21 @@
     async function doRegister() {
       const store_name = document.getElementById('reg-store-name').value.trim();
       const owner_name = document.getElementById('reg-owner-name').value.trim();
-      const email = document.getElementById('reg-email').value.trim();
-      const phone = document.getElementById('reg-phone').value.trim();
+      const email = document.getElementById('reg-email').value.trim().toLowerCase();
+      const phoneCode = document.getElementById('reg-country-code').value;
+      const phoneNumber = document.getElementById('reg-phone-number').value.trim();
+      const phone = phoneNumber ? (phoneCode + phoneNumber) : '';
       const password = document.getElementById('reg-password').value;
       const plan_type = document.getElementById('reg-plan').value;
 
-      if (!store_name || !owner_name || !email || !phone || !password) {
+      if (!store_name || !owner_name || !email || !phoneNumber || !password) {
         toast('Please fill all required fields', 'error');
+        return;
+      }
+
+      const phoneRegex = /^\+?[0-9]+$/;
+      if (!phoneRegex.test(phone)) {
+        toast('Phone number can only contain digits and an optional + symbol', 'error');
         return;
       }
 
@@ -2847,12 +2972,12 @@
       const res = Array.isArray(rawRes) ? rawRes[0] : rawRes;
       if (res.success || res.message === 'Workflow was started') {
         toast('Registration Successful', 'success');
-        
+
         // Clear registration fields
         document.getElementById('reg-store-name').value = '';
         document.getElementById('reg-owner-name').value = '';
         document.getElementById('reg-email').value = '';
-        document.getElementById('reg-phone').value = '';
+        document.getElementById('reg-phone-number').value = '';
         document.getElementById('reg-password').value = '';
 
         switchAuthTab('login');
@@ -2870,7 +2995,7 @@
       document.getElementById('reg-store-name').value = '';
       document.getElementById('reg-owner-name').value = '';
       document.getElementById('reg-email').value = '';
-      document.getElementById('reg-phone').value = '';
+      document.getElementById('reg-phone-number').value = '';
       document.getElementById('reg-password').value = '';
 
       // Clear JWT token and all session data
@@ -2947,6 +3072,7 @@
       if (!isHistoryNav) {
         history.pushState({ panel: panel }, '', '#' + panel);
       }
+      document.getElementById('sidebar').classList.remove('open');
       document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       const el = document.getElementById('panel-' + panel);
