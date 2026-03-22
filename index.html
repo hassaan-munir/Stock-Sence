@@ -15,7 +15,7 @@
     }
   </script>
   <link
-    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&family=Outfit:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
   <style>
     :root {
@@ -129,6 +129,10 @@
       transition: background .25s, border-color .25s;
     }
 
+    .stat-card {
+      font-family: 'Outfit', sans-serif;
+    }
+
     *,
     *::before,
     *::after {
@@ -163,7 +167,7 @@
     }
 
     body {
-      font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+      font-family: 'Outfit', 'DM Sans', system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -859,7 +863,7 @@
     }
 
     .stat-value {
-      font-family: 'Syne', sans-serif;
+      font-family: 'Outfit', sans-serif;
       font-size: 32px;
       font-weight: 800;
       letter-spacing: -0.03em;
@@ -868,6 +872,7 @@
     }
 
     .stat-label {
+      font-family: 'Outfit', sans-serif;
       color: var(--text2);
       font-size: 13px;
       margin-top: 6px;
@@ -1605,6 +1610,9 @@
 
     #mobile-top-bar {
       display: none;
+      position: sticky;
+      top: 0;
+      z-index: 998;
     }
 
     .sidebar-overlay {
@@ -1612,7 +1620,7 @@
       position: fixed;
       inset: 0;
       background: rgba(0, 0, 0, 0.5);
-      z-index: 999;
+      z-index: 500;
     }
 
     @media (max-width: 768px) {
@@ -1715,6 +1723,26 @@
       .table-card {
         max-width: 100% !important;
         padding: 16px !important;
+      }
+
+      /* Dashboard charts horizontal scroll on mobile */
+      #panel-dashboard>.page-body>div:nth-child(2) {
+        display: flex !important;
+        flex-direction: row !important;
+        overflow-x: auto !important;
+        padding-bottom: 12px;
+        gap: 16px;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+
+      #panel-dashboard>.page-body>div:nth-child(2)::-webkit-scrollbar {
+        display: none;
+      }
+
+      #panel-dashboard>.page-body>div:nth-child(2)>.chart-container {
+        min-width: 300px;
+        flex: 1 0 auto;
       }
     }
 
@@ -2060,8 +2088,9 @@
     <!-- MAIN CONTENT -->
     <div class="main-content">
       <div id="mobile-top-bar">
-        <div class="mobile-logo">Retail<span>AI</span></div>
         <button id="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.add('open')">☰</button>
+        <div class="mobile-logo">Retail<span>AI</span></div>
+        <div style="width: 24px;"></div> <!-- Spacer to keep logo centered if needed or just let it be -->
       </div>
 
       <!-- ADMIN PANELS -->
@@ -2083,13 +2112,13 @@
           <div style="display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-bottom:24px">
             <div class="chart-container">
               <div class="chart-header">
-                <h3>📈 Weekly Revenue</h3><span class="date-pill">Last 7 days</span>
+                <h3>Weekly Revenue</h3><span class="date-pill">Last 7 days</span>
               </div>
               <div class="chart-area" id="revenue-chart"></div>
             </div>
             <div class="chart-container">
               <div class="chart-header">
-                <h3>🥧 Sales Mix</h3>
+                <h3>Sales Mix</h3>
               </div>
               <div id="mix-chart" style="display:flex;flex-direction:column;gap:8px;margin-top:8px"></div>
             </div>
@@ -3686,9 +3715,9 @@
       const total = salesData.reduce((a, s) => a + parseFloat(s.total_amount), 0);
       const statsContainer = document.getElementById('sales-stats');
       statsContainer.innerHTML = `
-    <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-value">${fmt(total)}</div><div class="stat-label">Total Revenue</div></div>
-    <div class="stat-card"><div class="stat-icon">🧾</div><div class="stat-value">${salesData.length}</div><div class="stat-label">Total Transactions</div></div>
-    <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-value">${fmt(total / Math.max(1, salesData.length))}</div><div class="stat-label">Avg Sale Value</div></div>
+    <div class="stat-card"><div class="stat-value">${fmt(total)}</div><div class="stat-label">Total Revenue</div></div>
+    <div class="stat-card"><div class="stat-value">${salesData.length}</div><div class="stat-label">Total Transactions</div></div>
+    <div class="stat-card"><div class="stat-value">${fmt(total / Math.max(1, salesData.length))}</div><div class="stat-label">Avg Sale Value</div></div>
   `;
       tbody.innerHTML = salesData.map(s => `<tr>
     <td class="td-primary">#${s.sale_id}</td>
@@ -3801,25 +3830,21 @@
       // Stat cards
       document.getElementById('dash-stats').innerHTML = `
     <div class="stat-card" style="--card-color:var(--success)">
-      <div class="stat-icon" style="background:rgba(67,233,123,.15)">💰</div>
       <div class="stat-value">${fmt(d.total_revenue_today || 0)}</div>
       <div class="stat-label">Today's Revenue</div>
       <div class="stat-change up">↑ Live tracking</div>
     </div>
     <div class="stat-card" style="--card-color:var(--accent)">
-      <div class="stat-icon" style="background:rgba(108,99,255,.15)">📊</div>
       <div class="stat-value">${fmt(d.total_revenue_month || 0)}</div>
       <div class="stat-label">Monthly Revenue</div>
       <div class="stat-change up">↑ This month</div>
     </div>
     <div class="stat-card" style="--card-color:var(--accent2)">
-      <div class="stat-icon" style="background:rgba(255,101,132,.15)">🧾</div>
       <div class="stat-value">${d.total_sales_today || 0}</div>
       <div class="stat-label">Today's Sales</div>
       <div class="stat-change up">↑ Transactions</div>
     </div>
     <div class="stat-card" style="--card-color:var(--warning)">
-      <div class="stat-icon" style="background:rgba(247,151,30,.15)">⚠️</div>
       <div class="stat-value">${d.low_stock || 0}</div>
       <div class="stat-label">Low Stock Items</div>
       <div class="stat-change ${(d.low_stock || 0) > 0 ? 'down' : 'up'}">${(d.low_stock || 0) > 0 ? '↓ Needs attention' : '✓ OK'}</div>
@@ -3857,7 +3882,7 @@
       const expiringItems = products.filter(p => p.expiry_date && new Date(p.expiry_date) < new Date(Date.now() + 7 * 86400000));
       document.getElementById('alerts-grid').innerHTML = `
     <div class="alert-card">
-      <h4>🔴 Low / Out of Stock</h4>
+      <h4>Low / Out of Stock</h4>
       ${lowStockItems.length ? lowStockItems.map(p => `
         <div class="alert-item">
           <span>${p.name}</span>
