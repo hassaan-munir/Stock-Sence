@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RetailAI — Smart Store Management</title>
+  <title>StockSense — Smart Store Management</title>
   <link rel="manifest" href="./manifest.json">
 
   <script>
@@ -15,7 +15,7 @@
     }
   </script>
   <link
-    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&family=Outfit:wght@300;400;500;600;700;800&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet">
   <style>
     :root {
@@ -130,7 +130,7 @@
     }
 
     .stat-card {
-      font-family: 'Outfit', sans-serif;
+      font-family: 'Plus Jakarta Sans', sans-serif;
     }
 
     *,
@@ -167,7 +167,7 @@
     }
 
     body {
-      font-family: 'Outfit', 'DM Sans', system-ui, -apple-system, sans-serif;
+      font-family: 'Plus Jakarta Sans', 'Outfit', 'DM Sans', system-ui, -apple-system, sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
@@ -863,16 +863,33 @@
     }
 
     .stat-value {
-      font-family: 'Outfit', sans-serif;
-      font-size: 32px;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: clamp(20px, 6vw, 32px);
       font-weight: 800;
       letter-spacing: -0.03em;
       color: var(--text);
       line-height: 1.1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: help;
+    }
+
+    .stat-value:hover {
+      overflow: visible;
+      white-space: normal;
+      background: var(--surface2);
+      position: absolute;
+      z-index: 100;
+      padding: 4px 8px;
+      border-radius: 4px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border-hover);
+      max-width: 200%;
     }
 
     .stat-label {
-      font-family: 'Outfit', sans-serif;
+      font-family: 'Plus Jakarta Sans', sans-serif;
       color: var(--text2);
       font-size: 13px;
       margin-top: 6px;
@@ -1704,16 +1721,24 @@
       }
 
       .page-header {
-        flex-direction: column;
-        align-items: flex-start;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        padding: 24px 20px 0 !important;
         gap: 16px;
-        margin-bottom: 24px;
+        margin-bottom: 20px;
       }
 
       .header-actions {
         flex-direction: column;
-        width: 100%;
-        align-items: stretch;
+        align-items: flex-end;
+        gap: 6px;
+        width: auto;
+      }
+
+      .page-title {
+        font-size: 20px;
+        white-space: nowrap;
       }
 
       .date-pill {
@@ -1961,7 +1986,7 @@
   <div id="auth-screen">
     <div class="auth-card">
       <div class="auth-logo">
-        <h1>Retail<span>AI</span></h1>
+        <h1>Stock<span>Sense</span></h1>
         <p>Smart Store Management System</p>
       </div>
       <div class="auth-tabs">
@@ -2049,7 +2074,7 @@
     <!-- SIDEBAR -->
     <div class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <div class="sidebar-logo">Retail<span>AI</span></div>
+        <div class="sidebar-logo">Stock<span>Sense</span></div>
         <div class="store-badge" id="sidebar-store-name">Loading...</div>
       </div>
       <nav class="sidebar-nav" id="main-nav">
@@ -2089,7 +2114,7 @@
     <div class="main-content">
       <div id="mobile-top-bar">
         <button id="mobile-menu-btn" onclick="document.getElementById('sidebar').classList.add('open')">☰</button>
-        <div class="mobile-logo">Retail<span>AI</span></div>
+        <div class="mobile-logo">Stock<span>Sense</span></div>
         <div style="width: 24px;"></div> <!-- Spacer to keep logo centered if needed or just let it be -->
       </div>
 
@@ -3493,7 +3518,7 @@
     function showReceipt(saleId, sale) {
       const now = new Date().toLocaleString();
       document.getElementById('receipt-content').innerHTML = `
-    <h3>${currentStore?.store_name || 'RetailAI'}</h3>
+    <h3>${currentStore?.store_name || 'StockSense'}</h3>
     <div class="r-store">Receipt #${saleId}</div>
     <div style="font-size:11px;text-align:center;color:#888;margin-bottom:8px">${now}</div>
     <hr>
@@ -3639,6 +3664,8 @@
       });
       if (res.success) {
         toast('Attendance recorded!', 'success');
+        document.getElementById('att-checkin').value = '';
+        document.getElementById('att-checkout').value = '';
         loadAttendance();
       } else { toast(res.message || 'Failed', 'error'); }
     }
@@ -3715,9 +3742,9 @@
       const total = salesData.reduce((a, s) => a + parseFloat(s.total_amount), 0);
       const statsContainer = document.getElementById('sales-stats');
       statsContainer.innerHTML = `
-    <div class="stat-card"><div class="stat-value">${fmt(total)}</div><div class="stat-label">Total Revenue</div></div>
-    <div class="stat-card"><div class="stat-value">${salesData.length}</div><div class="stat-label">Total Transactions</div></div>
-    <div class="stat-card"><div class="stat-value">${fmt(total / Math.max(1, salesData.length))}</div><div class="stat-label">Avg Sale Value</div></div>
+    <div class="stat-card"><div class="stat-value" title="${fmt(total)}">${fmt(total)}</div><div class="stat-label">Total Revenue</div></div>
+    <div class="stat-card"><div class="stat-value" title="${salesData.length}">${salesData.length}</div><div class="stat-label">Total Transactions</div></div>
+    <div class="stat-card"><div class="stat-value" title="${fmt(total / Math.max(1, salesData.length))}">${fmt(total / Math.max(1, salesData.length))}</div><div class="stat-label">Avg Sale Value</div></div>
   `;
       tbody.innerHTML = salesData.map(s => `<tr>
     <td class="td-primary">#${s.sale_id}</td>
@@ -3830,22 +3857,22 @@
       // Stat cards
       document.getElementById('dash-stats').innerHTML = `
     <div class="stat-card" style="--card-color:var(--success)">
-      <div class="stat-value">${fmt(d.total_revenue_today || 0)}</div>
+      <div class="stat-value" title="${fmt(d.total_revenue_today || 0)}">${fmt(d.total_revenue_today || 0)}</div>
       <div class="stat-label">Today's Revenue</div>
       <div class="stat-change up">↑ Live tracking</div>
     </div>
     <div class="stat-card" style="--card-color:var(--accent)">
-      <div class="stat-value">${fmt(d.total_revenue_month || 0)}</div>
+      <div class="stat-value" title="${fmt(d.total_revenue_month || 0)}">${fmt(d.total_revenue_month || 0)}</div>
       <div class="stat-label">Monthly Revenue</div>
       <div class="stat-change up">↑ This month</div>
     </div>
     <div class="stat-card" style="--card-color:var(--accent2)">
-      <div class="stat-value">${d.total_sales_today || 0}</div>
+      <div class="stat-value" title="${d.total_sales_today || 0}">${d.total_sales_today || 0}</div>
       <div class="stat-label">Today's Sales</div>
       <div class="stat-change up">↑ Transactions</div>
     </div>
     <div class="stat-card" style="--card-color:var(--warning)">
-      <div class="stat-value">${d.low_stock || 0}</div>
+      <div class="stat-value" title="${d.low_stock || 0}">${d.low_stock || 0}</div>
       <div class="stat-label">Low Stock Items</div>
       <div class="stat-change ${(d.low_stock || 0) > 0 ? 'down' : 'up'}">${(d.low_stock || 0) > 0 ? '↓ Needs attention' : '✓ OK'}</div>
     </div>
@@ -3985,7 +4012,7 @@
       // Close modals on overlay click
       document.querySelectorAll('.modal-overlay').forEach(o => { o.addEventListener('click', e => { if (e.target === o) o.classList.remove('active'); }); });
 
-      toast('Welcome to RetailAI 🛒', 'success');
+      toast('Welcome to StockSense 🛒', 'success');
     });
   </script>
 </body>
