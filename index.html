@@ -1778,7 +1778,7 @@
       }
 
       #panel-dashboard>.page-body>div:nth-child(2)>.chart-container {
-        min-width: 300px;
+        min-width: 85%;
         flex: 1 0 auto;
       }
     }
@@ -2291,6 +2291,7 @@
           <div class="header-actions"></div>
         </div>
         <div class="page-body">
+          <div class="stat-grid" id="refund-stats" style="margin-bottom:24px"></div>
           <div class="table-card">
             <div class="table-scroll">
               <table>
@@ -2784,7 +2785,28 @@
     }
 
     function openModal(id) { document.getElementById(id).classList.add('active'); }
-    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+      resetForm(id);
+    }
+
+    function resetForm(modalId) {
+      if (modalId === 'modal-add-product') {
+        ['p-name', 'p-sku', 'p-category', 'p-cost', 'p-sale', 'p-stock', 'p-minstock', 'p-expiry', 'p-sup-name', 'p-sup-phone', 'p-sup-email', 'p-sup-wa', 'p-reorder-qty'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        const reorderEl = document.getElementById('p-auto-reorder');
+        if (reorderEl) reorderEl.value = '0';
+      } else if (modalId === 'modal-add-user') {
+        ['u-name', 'u-email', 'u-pass'].forEach(id => {
+          const el = document.getElementById(id);
+          if (el) el.value = '';
+        });
+        const roleEl = document.getElementById('u-role');
+        if (roleEl) roleEl.value = 'staff';
+      }
+    }
     function showStatDetail(title, value) {
       document.getElementById('stat-detail-title').textContent = title;
       document.getElementById('stat-detail-value').textContent = value;
@@ -3200,6 +3222,22 @@
       }
     }
 
+    function getRefundData(res) {
+      if (res && res.success && Array.isArray(res.refunds)) return res.refunds;
+      if (Array.isArray(res) && res.length > 0 && res[0]?.refunds) return res[0].refunds;
+      if (res && res.success && res.data) return Array.isArray(res.data) ? res.data : [res.data];
+      if (Array.isArray(res)) return res;
+      return [];
+    }
+
+    function getSalesData(res) {
+      if (res && res.success && Array.isArray(res.sales)) return res.sales;
+      if (Array.isArray(res) && res.length > 0 && res[0]?.sales) return res[0].sales;
+      if (res && res.success && res.data) return Array.isArray(res.data) ? res.data : [res.data];
+      if (Array.isArray(res)) return res;
+      return [];
+    }
+
     async function refreshProducts() {
       const btn = document.getElementById('btn-refresh-products');
       if (btn) btn.classList.add('spinning');
@@ -3311,6 +3349,18 @@
         reorder_qty_default: parseInt(document.getElementById('p-reorder-qty').value) || 0,
       };
       if (!p.name) { toast('Product name required', 'error'); return; }
+
+      // Check duplicate in already loaded products array
+      const duplicate = products.find(prod =>
+        prod.name.toLowerCase() === p.name.toLowerCase() ||
+        (p.sku && prod.sku && prod.sku.toLowerCase() === p.sku.toLowerCase())
+      );
+
+      if (duplicate) {
+        toast('Product with same name or SKU already exists!', 'error');
+        return;
+      }
+
       const res = await apiCall(WEBHOOKS.ADD_PRODUCT, p);
       if (res.success) {
         toast('Product added!', 'success');
@@ -3561,17 +3611,67 @@
     // ==========================================
     // REFUND
     // ==========================================
-    function populateRefundSelects() { }
+    function populateRefundSelects() {
+      // Clear lookup
+      document.getElementById('refund-sale-id').value = '';
+      if (document.getElementById('refund-sale-info')) {
+        document.getElementById('refund-sale-info').style.display = 'none';
+      }
+      renderRefundStats();
+    }
+
+    async function renderRefundStats() {
+      const statsEl = document.getElementById('refund-stats');
+      if (!statsEl) return;
+
+      const refundResRaw = await apiCall(WEBHOOKS.GET_REFUNDS, {});
+      const allRefunds = getRefundData(refundResRaw);
+
+      const today = new Date().toISOString().split('T')[0];
+      const refundsToday = allRefunds.filter(r => r.refund_datetime && r.refund_datetime.startsWith(today));
+
+      const totalRefundsValue = allRefunds.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+      const refundsTodayValue = refundsToday.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+
+      statsEl.innerHTML = `
+        <div class="stat-card" style="--card-color:var(--danger)">
+          <div class="stat-value">${fmt(refundsTodayValue)}</div>
+          <div class="stat-label">Today's Refunds</div>
+        </div>
+        <div class="stat-card" style="--card-color:var(--danger)">
+          <div class="stat-value">${fmt(totalRefundsValue)}</div>
+          <div class="stat-label">Total Refunds</div>
+        </div>
+      `;
+    }
 
     async function lookupSale() {
       const saleId = document.getElementById('refund-sale-id').value;
       if (!saleId) { toast('Enter Sale ID', 'error'); return; }
-      const rawRes = await apiCall(WEBHOOKS.LOOKUP_SALE, { sale_id: saleId });
-      const res = Array.isArray(rawRes) ? rawRes[0] : rawRes;
+
+      const [saleResRaw, refundResRaw] = await Promise.all([
+        apiCall(WEBHOOKS.LOOKUP_SALE, { sale_id: saleId }),
+        apiCall(WEBHOOKS.GET_REFUNDS, {})
+      ]);
+
+      const res = Array.isArray(saleResRaw) ? saleResRaw[0] : saleResRaw;
+      const allRefunds = getRefundData(refundResRaw);
+      const existingRefunds = allRefunds;
+
       if (res.success && res.sale) {
         refundSaleItems = res.sale.items || [];
         const sel = document.getElementById('refund-product-id');
-        sel.innerHTML = refundSaleItems.map(i => `<option value="${i.product_id}" data-qty="${i.qty}" data-price="${i.unit_price}">${i.name} (Qty: ${i.qty}, Price: ${fmt(i.unit_price)})</option>`).join('');
+
+        sel.innerHTML = refundSaleItems.map(i => {
+          const alreadyRefunded = existingRefunds.filter(r => r.sale_id == saleId && r.product_id == i.product_id);
+          const totalRefundedQty = alreadyRefunded.reduce((sum, r) => sum + (parseInt(r.qty) || 0), 0);
+          const remainingQty = i.qty - totalRefundedQty;
+
+          return `<option value="${i.product_id}" data-qty="${remainingQty}" data-price="${i.unit_price}" ${remainingQty <= 0 ? 'disabled' : ''}>
+            ${i.name} (Avail: ${remainingQty}/${i.qty}, ${fmt(i.unit_price)})
+          </option>`;
+        }).join('');
+
         document.getElementById('refund-sale-info').style.display = 'block';
         document.getElementById('refund-qty').value = 1;
         updateRefundAmount();
@@ -3605,15 +3705,47 @@
       const amount = parseFloat(document.getElementById('refund-amount').value) || 0;
       const reason = document.getElementById('refund-reason').value;
       if (!sale_id || !product_id || !reason) { toast('Fill all fields', 'error'); return; }
+
+      // Robust Multi-Source Verification
+      toast('Verifying refund... 🛡️', 'info');
+      const [saleResRaw, refundResRaw] = await Promise.all([
+        apiCall(WEBHOOKS.LOOKUP_SALE, { sale_id: sale_id }),
+        apiCall(WEBHOOKS.GET_REFUNDS, {})
+      ]);
+
+      const saleRes = Array.isArray(saleResRaw) ? saleResRaw[0] : saleResRaw;
+      const allRefunds = getRefundData(refundResRaw);
+
+      if (!saleRes.success || !saleRes.sale) {
+        toast('Verification failed: Original sale records not found.', 'error');
+        return;
+      }
+
+      const originalItem = (saleRes.sale.items || []).find(i => String(i.product_id) === String(product_id));
+      if (!originalItem) {
+        toast('Verification failed: This item was not part of the original sale.', 'error');
+        return;
+      }
+
+      const alreadyRefunded = allRefunds.filter(r => String(r.sale_id) === String(sale_id) && String(r.product_id) === String(product_id));
+      const totalRefundedQty = alreadyRefunded.reduce((sum, r) => sum + (parseInt(r.qty) || 0), 0);
+
+      if ((totalRefundedQty + qty) > originalItem.qty) {
+        toast(`DENIED: Item already refunded (${totalRefundedQty}/${originalItem.qty}). Cannot refund ${qty} more.`, 'error');
+        return;
+      }
+
       const rawRes = await apiCall(WEBHOOKS.CREATE_REFUND, { sale_id, product_id, qty, amount, reason });
       const res = Array.isArray(rawRes) ? rawRes[0] : rawRes;
       if (res.success) {
         toast(`Refund #${res.refund_id} processed!`, 'success');
         document.getElementById('refund-sale-info').style.display = 'none';
         document.getElementById('refund-sale-id').value = '';
+        document.getElementById('refund-reason').value = '';
         // Restore stock locally
         const p = products.find(x => x.product_id == product_id);
         if (p) p.current_stock += qty;
+        renderRefundStats(); // Update stats in history panel if loaded
       } else { toast(res.message || 'Refund failed', 'error'); }
     }
 
@@ -3844,7 +3976,8 @@
 
     async function loadRefundHistory() {
       const res = await apiCall(WEBHOOKS.GET_REFUNDS, {});
-      const data = res.data || [];
+      const data = getRefundData(res);
+      renderRefundStats();
       const tbody = document.getElementById('refund-history-tbody');
       tbody.innerHTML = data.map(r => `<tr>
     <td>#${r.refund_id}</td>
@@ -3880,25 +4013,36 @@
     // DASHBOARD
     // ==========================================
     async function loadDashboard() {
-      const [dashRes, aiRes] = await Promise.all([
+      const [dashRes, aiRes, refundResRaw] = await Promise.all([
         apiCall(WEBHOOKS.GET_DASHBOARD, {}),
-        apiCall(WEBHOOKS.GET_AI_SUGGESTIONS, {})
+        apiCall(WEBHOOKS.GET_AI_SUGGESTIONS, {}),
+        apiCall(WEBHOOKS.GET_REFUNDS, {})
       ]);
       const d = dashRes.data || {};
+      const allRefunds = getRefundData(refundResRaw);
+
+      const today = new Date().toISOString().split('T')[0];
+      const refundsToday = allRefunds.filter(r => r.refund_datetime && r.refund_datetime.startsWith(today));
+
+      const totalRefundsValue = allRefunds.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+      const refundsTodayValue = refundsToday.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
+
+      const revenueToday = Math.max(0, parseFloat(d.total_revenue_today || 0) - refundsTodayValue);
+      const revenueMonth = Math.max(0, parseFloat(d.total_revenue_month || 0) - totalRefundsValue);
 
       // Stat cards
       document.getElementById('dash-stats').innerHTML = `
     <div class="stat-card" style="--card-color:var(--success)">
-      <div class="stat-value">${fmt(d.total_revenue_today || 0)}</div>
+      <div class="stat-value">${fmt(revenueToday)}</div>
       <div class="stat-label">Today's Revenue</div>
       <div class="stat-change up">↑ Live tracking</div>
-      <button class="btn-view-stat" onclick="showStatDetail('Today Revenue', '${fmt(d.total_revenue_today || 0)}')">View</button>
+      <button class="btn-view-stat" onclick="showStatDetail('Today Revenue', '${fmt(revenueToday)}')">View</button>
     </div>
     <div class="stat-card" style="--card-color:var(--accent)">
-      <div class="stat-value">${fmt(d.total_revenue_month || 0)}</div>
+      <div class="stat-value">${fmt(revenueMonth)}</div>
       <div class="stat-label">Monthly Revenue</div>
       <div class="stat-change up">↑ This month</div>
-      <button class="btn-view-stat" onclick="showStatDetail('Monthly Revenue', '${fmt(d.total_revenue_month || 0)}')">View</button>
+      <button class="btn-view-stat" onclick="showStatDetail('Monthly Revenue', '${fmt(revenueMonth)}')">View</button>
     </div>
     <div class="stat-card" style="--card-color:var(--accent2)">
       <div class="stat-value">${d.total_sales_today || 0}</div>
