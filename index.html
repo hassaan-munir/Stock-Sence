@@ -1987,6 +1987,28 @@
       height: 100%;
       border-radius: 4px;
     }
+    #chatbot-fab {
+      position: fixed;
+      bottom: 32px;
+      right: 32px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1, #ec4899);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      cursor: pointer;
+      z-index: 9998;
+      box-shadow: 0 4px 20px rgba(99,102,241,0.4);
+      transition: transform 0.2s, box-shadow 0.2s;
+      user-select: none;
+    }
+    #chatbot-fab:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 28px rgba(99,102,241,0.6);
+    }
   </style>
 </head>
 
@@ -2554,6 +2576,7 @@
               <table>
                 <thead>
                   <tr>
+                    <th>Name</th>
                     <th>Date</th>
                     <th>Check-in</th>
                     <th>Check-out</th>
@@ -2565,6 +2588,12 @@
               </table>
             </div>
           </div>
+        </div>
+      </div>
+
+      <div id="panel-chatbot" class="panel">
+        <div class="page-body" style="height: calc(100vh - 20px); padding-top: 20px; padding-bottom: 0;">
+          <iframe id="chatbot-frame" src="" style="width:100%; height:100%; border:none; border-radius:12px; background:var(--surface);"></iframe>
         </div>
       </div>
 
@@ -3000,6 +3029,10 @@
         if (res.store_name) localStorage.setItem('store_name', res.store_name);
         if (res.user_id) localStorage.setItem('user_id', res.user_id);
         if (res.full_name) localStorage.setItem('full_name', res.full_name);
+        
+        // Clear chatbot history on fresh login
+        localStorage.removeItem('stocksense_chat_history');
+        
         console.log('✅ JWT token + session data received and stored');
 
         // Build currentUser and currentStore from flat response fields
@@ -3118,6 +3151,14 @@
       document.getElementById('user-avatar').textContent = initials;
       document.getElementById('current-date').textContent = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
+      if (currentUser?.role === 'admin') {
+        const fab = document.getElementById('chatbot-fab');
+        if (fab) fab.style.display = 'flex';
+      } else {
+        const fab = document.getElementById('chatbot-fab');
+        if (fab) fab.style.display = 'none';
+      }
+
       buildNav();
       populateStaffSelect();
       loadProducts().then(() => {
@@ -3138,6 +3179,8 @@
         html += navItem('refund-history', '🔄', 'Refunds');
         html += navItem('stock-log', '📋', 'Stock Log');
         html += navItem('users', '👥', 'Staff');
+        html += `<div class="nav-section-title" style="margin-top:12px">AI Assistant</div>`;
+        html += navItem('chatbot', '🤖', 'StockSense AI');
         html += `<div class="nav-section-title" style="margin-top:12px">Operations</div>`;
       } else {
         html += `<div class="nav-section-title">Operations</div>`;
@@ -3166,6 +3209,17 @@
       document.querySelectorAll(`.nav-item`).forEach(n => {
         if (n.textContent.toLowerCase().includes(panel.replace('-', ' ').toLowerCase())) n.classList.add('active');
       });
+
+      // Handle Chatbot FAB visibility
+      const fab = document.getElementById('chatbot-fab');
+      if (fab) {
+        if (panel === 'chatbot' || currentUser?.role !== 'admin') {
+          fab.style.display = 'none';
+        } else {
+          fab.style.display = 'flex';
+        }
+      }
+
       // Load data for panel
       switch (panel) {
         case 'dashboard': loadDashboard(); break;
@@ -3179,6 +3233,7 @@
         case 'users': loadUsers(); break;
         case 'refund-history': loadRefundHistory(); break;
         case 'stock-log': loadStockLog(); break;
+        case 'chatbot': openChatbot(true); break;
       }
     }
 
@@ -3819,7 +3874,7 @@
       const result = Array.isArray(res) ? res[0] : res;
       const data = result.data || [];
       const tbody = document.getElementById('attendance-tbody');
-      if (!data.length) { tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:30px">No attendance records</td></tr>`; return; }
+      if (!data.length) { tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:30px">No attendance records</td></tr>`; return; }
       tbody.innerHTML = data.map(a => {
         let hours = '—';
         if (a.checkin_time && a.checkout_time) {
@@ -3827,6 +3882,7 @@
           hours = (diff / 3600000).toFixed(1) + 'h';
         }
         return `<tr>
+      <td>${a.full_name || '—'}</td>
       <td>${a.date}</td>
       <td>${a.checkin_time || '—'}</td>
       <td>${a.checkout_time || '—'}</td>
@@ -4047,7 +4103,7 @@
       const refundsTodayValue = refundsToday.reduce((sum, r) => sum + (parseFloat(r.amount) || 0), 0);
 
       const revenueToday = Math.max(0, parseFloat(d.total_revenue_today || 0) - refundsTodayValue);
-      const revenueMonth = Math.max(0, parseFloat(d.total_revenue_month || 0) - totalRefundsValue);
+      const revenueMonth = parseFloat(d.total_revenue_month || 0);
 
       // Stat cards
       document.getElementById('dash-stats').innerHTML = `
@@ -4213,7 +4269,30 @@
 
       toast('Welcome to StockSense 🛒', 'success');
     });
+
+    function openChatbot(fromNav = false) {
+      const token = localStorage.getItem('retailai-token') || '';
+      const store_id = localStorage.getItem('store_id') || '';
+      const user_id = localStorage.getItem('user_id') || '';
+      if (!token) {
+        toast('Please login first', 'warning');
+        return;
+      }
+      
+      const url = `chatbot.html?token=${encodeURIComponent(token)}&store_id=${encodeURIComponent(store_id)}&user_id=${encodeURIComponent(user_id)}&embedded=true`;
+      const frame = document.getElementById('chatbot-frame');
+      
+      // Prevent reloading iframe if already loaded with same URL
+      if (frame && frame.src.indexOf(url) === -1) {
+        frame.src = url;
+      }
+      
+      if (!fromNav) {
+        navigateTo('chatbot');
+      }
+    }
   </script>
+  <div id="chatbot-fab" onclick="openChatbot()" title="StockSense AI">🤖</div>
 </body>
 
 </html>
